@@ -48,6 +48,10 @@ void q_free(struct list_head *l)
  */
 bool q_insert_head(struct list_head *head, char *s)
 {
+    if (!head)
+        return false;
+    if (!s)
+        return false;
     char *tmp = strdup(s);
     element_t *n = malloc(sizeof(element_t));
     if (!tmp || !n)
@@ -66,6 +70,10 @@ bool q_insert_head(struct list_head *head, char *s)
  */
 bool q_insert_tail(struct list_head *head, char *s)
 {
+    if (!head)
+        return false;
+    if (!s)
+        return false;
     char *tmp = strdup(s);
     element_t *n = malloc(sizeof(element_t));
     if (!tmp || !n)
@@ -95,6 +103,8 @@ element_t *q_remove_head(struct list_head *head, char *sp, size_t bufsize)
         return NULL;
     if (list_empty(head))
         return NULL;
+    if (!sp)
+        return NULL;
     element_t *tmp = list_first_entry(head, element_t, list);
     strncpy(sp, tmp->value, bufsize - 1);
     list_del_init(&tmp->list);
@@ -110,6 +120,8 @@ element_t *q_remove_tail(struct list_head *head, char *sp, size_t bufsize)
     if (!head)
         return NULL;
     if (list_empty(head))
+        return NULL;
+    if (!sp)
         return NULL;
     element_t *tmp = list_last_entry(head, element_t, list);
     strncpy(sp, tmp->value, bufsize - 1);
