@@ -198,7 +198,6 @@ bool q_delete_dup(struct list_head *head)
         element_t *back_entry = list_entry(back, element_t, list);
         element_t *front_entry = list_entry(front, element_t, list);
         while (strcmp(front_entry->value, back_entry->value) == 0) {
-            printf("%s", front_entry->value);
             back = back->next;
             if (back == head)
                 break;
