@@ -272,10 +272,67 @@ void q_reverse(struct list_head *head)
         next = next->next;
     } while (curr != head);
 }
+void merge(struct list_head **li, struct list_head **mi, struct list_head **ri)
+{
+    struct list_head *l_start = *li;
+    struct list_head *l_end = *mi;
+    struct list_head *r_start = (*mi)->next;
+    struct list_head *r_end = *ri;
+    struct list_head *walk = (*li)->prev;
 
+    struct list_head *head = (*li)->prev;
+    struct list_head *tail = (*ri)->next;
+
+    element_t *l_entry = list_entry(l_start, element_t, list);
+    element_t *r_entry = list_entry(r_start, element_t, list);
+    while (true) {
+        if (strcmp(l_entry->value, r_entry->value) > 0) {
+            struct list_head *next_r_start = r_start->next;
+            list_del_init(r_start);
+            list_add(r_start, walk);
+
+            walk = walk->next;
+            if (r_start == r_end) {
+                break;
+            }
+
+            r_start = next_r_start;
+            r_entry = list_entry(r_start, element_t, list);
+        } else {
+            struct list_head *next_l_start = l_start->next;
+            list_del_init(l_start);
+            list_add(l_start, walk);
+            walk = walk->next;
+            if (l_start == l_end) {
+                break;
+            }
+
+            l_start = next_l_start;
+            l_entry = list_entry(l_start, element_t, list);
+        }
+    }
+    *li = head->next;
+    *ri = tail->prev;
+}
+void merge_sort(struct list_head **li, struct list_head **ri)
+{
+    if (*li == *ri)
+        return;
+    struct list_head *front = *li, *back = *ri;
+    for (; front != back && front->next != back;
+         front = front->next, back = back->prev) {
+    }
+    merge_sort(li, &back->prev);
+    merge_sort(&back, ri);
+    struct list_head **mi = &back->prev;
+    merge(li, mi, ri);
+}
 /*
  * Sort elements of queue in ascending order
  * No effect if q is NULL or empty. In addition, if q has only one
  * element, do nothing.
  */
-void q_sort(struct list_head *head) {}
+void q_sort(struct list_head *head)
+{
+    merge_sort(&head->next, &head->prev);
+}
