@@ -53,9 +53,13 @@ bool q_insert_head(struct list_head *head, char *s)
     if (!s)
         return false;
     char *tmp = strdup(s);
-    element_t *n = malloc(sizeof(element_t));
-    if (!tmp || !n)
+    if (!tmp)
         return false;
+    element_t *n = malloc(sizeof(element_t));
+    if (!n) {
+        free(tmp);
+        return false;
+    }
     n->value = tmp;
     list_add(&n->list, head);
     return true;
@@ -75,9 +79,13 @@ bool q_insert_tail(struct list_head *head, char *s)
     if (!s)
         return false;
     char *tmp = strdup(s);
-    element_t *n = malloc(sizeof(element_t));
-    if (!tmp || !n)
+    if (!tmp)
         return false;
+    element_t *n = malloc(sizeof(element_t));
+    if (!n) {
+        free(tmp);
+        return false;
+    }
     n->value = tmp;
     list_add_tail(&n->list, head);
     return true;
@@ -103,11 +111,14 @@ element_t *q_remove_head(struct list_head *head, char *sp, size_t bufsize)
         return NULL;
     if (list_empty(head))
         return NULL;
-    if (!sp)
-        return NULL;
     element_t *tmp = list_first_entry(head, element_t, list);
-    strncpy(sp, tmp->value, bufsize - 1);
     list_del_init(&tmp->list);
+    if (!sp)
+        return tmp;
+    size_t len = strlen(tmp->value);
+    len = len > bufsize - 1 ? bufsize - 1 : len;
+    strncpy(sp, tmp->value, len);
+    sp[len] = '\0';
     return tmp;
 }
 
@@ -121,11 +132,14 @@ element_t *q_remove_tail(struct list_head *head, char *sp, size_t bufsize)
         return NULL;
     if (list_empty(head))
         return NULL;
-    if (!sp)
-        return NULL;
     element_t *tmp = list_last_entry(head, element_t, list);
-    strncpy(sp, tmp->value, bufsize - 1);
     list_del_init(&tmp->list);
+    if (!sp)
+        return tmp;
+    size_t len = strlen(tmp->value);
+    len = len > bufsize - 1 ? bufsize - 1 : len;
+    strncpy(sp, tmp->value, len);
+    sp[len] = '\0';
     return tmp;
 }
 
@@ -346,5 +360,7 @@ void merge_sort(struct list_head **li, struct list_head **ri)
  */
 void q_sort(struct list_head *head)
 {
+    if (!head)
+        return;
     merge_sort(&head->next, &head->prev);
 }
