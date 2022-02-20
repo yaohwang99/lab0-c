@@ -298,7 +298,9 @@ void q_reverse(struct list_head *head)
         next = next->next;
     } while (curr != head);
 }
-void merge(struct list_head **li, struct list_head **mi, struct list_head **ri)
+void my_merge(struct list_head **li,
+              struct list_head **mi,
+              struct list_head **ri)
 {
     struct list_head *l_start = *li;
     struct list_head *l_end = *mi;
@@ -351,7 +353,7 @@ void merge_sort(struct list_head **li, struct list_head **ri)
     merge_sort(li, &back->prev);
     merge_sort(&back, ri);
     struct list_head **mi = &back->prev;
-    merge(li, mi, ri);
+    my_merge(li, mi, ri);
 }
 /*
  * Sort elements of queue in ascending order
