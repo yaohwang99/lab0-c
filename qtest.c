@@ -15,6 +15,7 @@
 #include "dudect/fixture.h"
 #include "list.h"
 
+
 /* Our program needs to use regular malloc/free */
 #define INTERNAL 1
 #include "harness.h"
@@ -47,7 +48,7 @@
  */
 #define BIG_LIST 30
 static int big_list_size = BIG_LIST;
-
+#include "list_sort.h"
 
 /* Global variables */
 
@@ -640,6 +641,49 @@ bool do_sort(int argc, char *argv[])
     return ok && !error_check();
 }
 
+bool do_lsort(int argc, char *argv[])
+{
+    if (argc != 1) {
+        report(1, "%s takes no arguments", argv[0]);
+        return false;
+    }
+
+    if (!l_meta.l)
+        report(3, "Warning: Calling sort on null queue");
+    error_check();
+
+    int cnt = q_size(l_meta.l);
+    if (cnt < 2)
+        report(3, "Warning: Calling sort on single node");
+    error_check();
+
+    set_noallocate_mode(true);
+    if (exception_setup(true))
+        linux_q_sort(l_meta.l);
+    exception_cancel();
+    set_noallocate_mode(false);
+
+    bool ok = true;
+    if (l_meta.size) {
+        for (struct list_head *cur_l = l_meta.l->next;
+             cur_l != l_meta.l && --cnt; cur_l = cur_l->next) {
+            /* Ensure each element in ascending order */
+            /* FIXME: add an option to specify sorting order */
+            element_t *item, *next_item;
+            item = list_entry(cur_l, element_t, list);
+            next_item = list_entry(cur_l->next, element_t, list);
+            if (strcasecmp(item->value, next_item->value) > 0) {
+                report(1, "ERROR: Not sorted in ascending order");
+                ok = false;
+                break;
+            }
+        }
+    }
+
+    show_queue(3);
+    return ok && !error_check();
+}
+
 static bool do_dm(int argc, char *argv[])
 {
     if (argc != 1) {
@@ -787,6 +831,9 @@ static void console_init()
         "                | Remove from head of queue without reporting value.");
     ADD_COMMAND(reverse, "                | Reverse queue");
     ADD_COMMAND(sort, "                | Sort queue in ascending order");
+    ADD_COMMAND(
+        lsort,
+        "                | Sort queue in ascending order by linux list sort");
     ADD_COMMAND(
         size, " [n]            | Compute queue size n times (default: n == 1)");
     ADD_COMMAND(show, "                | Show queue contents");
