@@ -683,7 +683,32 @@ bool do_lsort(int argc, char *argv[])
     show_queue(3);
     return ok && !error_check();
 }
+bool do_shuffle(int argc, char *argv[])
+{
+    if (argc != 1) {
+        report(1, "%s takes no arguments", argv[0]);
+        return false;
+    }
 
+    if (!l_meta.l)
+        report(3, "Warning: Calling shuffle on null queue");
+    error_check();
+
+    int cnt = q_size(l_meta.l);
+    if (cnt < 2)
+        report(3, "Warning: Calling shuffle on single node");
+    error_check();
+
+    // set_noallocate_mode(true);
+    // if (exception_setup(true))
+    q_shuffle(l_meta.l);
+    // exception_cancel();
+    // set_noallocate_mode(false);
+
+    bool ok = true;
+    show_queue(3);
+    return ok && !error_check();
+}
 static bool do_dm(int argc, char *argv[])
 {
     if (argc != 1) {
@@ -831,6 +856,7 @@ static void console_init()
         "                | Remove from head of queue without reporting value.");
     ADD_COMMAND(reverse, "                | Reverse queue");
     ADD_COMMAND(sort, "                | Sort queue in ascending order");
+    ADD_COMMAND(shuffle, "                | Shuffle queue.");
     ADD_COMMAND(
         lsort,
         "                | Sort queue in ascending order by linux list sort");
