@@ -187,3 +187,53 @@ void linux_q_sort(struct list_head *head)
     list_cmp_func_t *cmp = compare_entry;
     list_sort(priv, head, cmp);
 }
+
+
+void q_shuffle(struct list_head *head)
+{
+    if (!head)
+        return;
+    if (list_empty(head))
+        return;
+    if (list_is_singular(head))
+        return;
+    srand(time(NULL));
+
+    int len = q_size(head);
+    struct list_head *target = head->next;
+    struct list_head *tail = head->prev;
+    struct list_head **list_arr = malloc(len * sizeof(struct list_head *));
+    if (!list_arr) {
+        printf("list_arr malloc failed\n");
+        return;
+    }
+    for (int i = 0; i < len; ++i) {
+        list_arr[i] = target;
+        target = target->next;
+    }
+    while (len) {
+        int random = rand() % len;
+        if (random == len - 1) {
+            tail = tail->prev;
+            len--;
+            continue;
+        }
+        target = list_arr[random];
+        struct list_head *target_prev = target->prev;
+        struct list_head *tail_next = tail->next;
+        list_del_init(tail);
+        list_add(tail, target_prev);
+        list_del_init(target);
+
+        target->prev = tail_next->prev;
+        tail_next->prev = target;
+        target->next = tail_next;
+        target->prev->next = target;
+
+        list_arr[random] = tail;
+        list_arr[len - 1] = target;
+        tail = tail_next->prev->prev;
+        len--;
+    }
+    free(list_arr);
+}
