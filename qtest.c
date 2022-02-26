@@ -765,11 +765,11 @@ bool do_shuffle(int argc, char *argv[])
         report(3, "Warning: Calling shuffle on single node");
     error_check();
 
-    // set_noallocate_mode(true);
-    // if (exception_setup(true))
-    q_shuffle(l_meta.l);
-    // exception_cancel();
-    // set_noallocate_mode(false);
+    set_noallocate_mode(true);
+    if (exception_setup(true))
+        q_shuffle(l_meta.l);
+    exception_cancel();
+    set_noallocate_mode(false);
 
     bool ok = true;
     show_queue(3);
