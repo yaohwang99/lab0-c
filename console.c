@@ -6,7 +6,7 @@
 #include <fcntl.h>
 #include <inttypes.h>
 #include <limits.h>
-#include <stdbool.h>
+#include <netinet/in.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -16,7 +16,7 @@
 #include <unistd.h>
 
 #include "report.h"
-
+#include "tiny.h"
 /* Some global values */
 int simulation = 0;
 static cmd_ptr cmd_list = NULL;
@@ -36,16 +36,6 @@ static double last_time;
  * Must create stack of buffers to handle I/O with nested source commands.
  */
 
-#define RIO_BUFSIZE 8192
-typedef struct RIO_ELE rio_t, *rio_ptr;
-
-struct RIO_ELE {
-    int fd;                /* File descriptor */
-    int cnt;               /* Unread bytes in internal buffer */
-    char *bufptr;          /* Next unread byte in internal buffer */
-    char buf[RIO_BUFSIZE]; /* Internal buffer */
-    rio_ptr prev;          /* Next element in stack */
-};
 
 static rio_ptr buf_stack;
 static char linebuf[RIO_BUFSIZE];
@@ -404,6 +394,7 @@ void init_cmd()
     param_list = NULL;
     err_cnt = 0;
     quit_flag = false;
+    noise = true;
 
     ADD_COMMAND(help, "                | Show documentation");
     ADD_COMMAND(option, " [name val]     | Display or set options");
@@ -411,6 +402,7 @@ void init_cmd()
     ADD_COMMAND(source, " file           | Read commands from source file");
     ADD_COMMAND(log, " file           | Copy output to file");
     ADD_COMMAND(time, " cmd arg ...    | Time command execution");
+
     add_cmd("#", do_comment_cmd, " ...            | Display comment");
     add_param("simulation", &simulation, "Start/Stop simulation mode", NULL);
     add_param("verbose", &verblevel, "Verbosity level", NULL);
@@ -437,9 +429,9 @@ static bool push_file(char *fname)
         fd_max = fd;
 
     rio_ptr rnew = malloc_or_fail(sizeof(rio_t), "push_file");
-    rnew->fd = fd;
-    rnew->cnt = 0;
-    rnew->bufptr = rnew->buf;
+    rnew->rio_fd = fd;
+    rnew->rio_cnt = 0;
+    rnew->rio_bufptr = rnew->rio_buf;
     rnew->prev = buf_stack;
     buf_stack = rnew;
 
@@ -452,7 +444,7 @@ static void pop_file()
     if (buf_stack) {
         rio_ptr rsave = buf_stack;
         buf_stack = rsave->prev;
-        close(rsave->fd);
+        close(rsave->rio_fd);
         free_block(rsave, sizeof(rio_t));
     }
 }
@@ -476,11 +468,12 @@ static char *readline()
         return NULL;
 
     for (cnt = 0; cnt < RIO_BUFSIZE - 2; cnt++) {
-        if (buf_stack->cnt <= 0) {
+        if (buf_stack->rio_cnt <= 0) {
             /* Need to read from input file */
-            buf_stack->cnt = read(buf_stack->fd, buf_stack->buf, RIO_BUFSIZE);
-            buf_stack->bufptr = buf_stack->buf;
-            if (buf_stack->cnt <= 0) {
+            buf_stack->rio_cnt =
+                read(buf_stack->rio_fd, buf_stack->rio_buf, RIO_BUFSIZE);
+            buf_stack->rio_bufptr = buf_stack->rio_buf;
+            if (buf_stack->rio_cnt <= 0) {
                 /* Encountered EOF */
                 pop_file();
                 if (cnt > 0) {
@@ -499,9 +492,9 @@ static char *readline()
         }
 
         /* Have text in buffer */
-        c = *buf_stack->bufptr++;
+        c = *buf_stack->rio_bufptr++;
         *lptr++ = c;
-        buf_stack->cnt--;
+        buf_stack->rio_cnt--;
         if (c == '\n')
             break;
     }
@@ -541,6 +534,9 @@ int cmd_select(int nfds,
                fd_set *exceptfds,
                struct timeval *timeout)
 {
+    // int flags = fcntl(listenfd, F_GETFL);
+    // fcntl(listenfd, F_SETFL, flags | O_NONBLOCK);
+
     int infd;
     fd_set local_readset;
 
@@ -553,8 +549,12 @@ int cmd_select(int nfds,
             readfds = &local_readset;
 
         /* Add input fd to readset for select */
-        infd = buf_stack->fd;
+        infd = buf_stack->rio_fd;
+        FD_ZERO(readfds);
         FD_SET(infd, readfds);
+        if (listenfd != -1)
+            FD_SET(listenfd, readfds);
+
         if (infd == STDIN_FILENO && prompt_flag) {
             printf("%s", prompt);
             fflush(stdout);
@@ -563,7 +563,10 @@ int cmd_select(int nfds,
 
         if (infd >= nfds)
             nfds = infd + 1;
+        if (listenfd >= nfds)
+            nfds = listenfd + 1;
     }
+
     if (nfds == 0)
         return 0;
 
@@ -571,17 +574,32 @@ int cmd_select(int nfds,
     if (result <= 0)
         return result;
 
-    infd = buf_stack->fd;
+    infd = buf_stack->rio_fd;
     if (readfds && FD_ISSET(infd, readfds)) {
         /* Commandline input available */
         FD_CLR(infd, readfds);
         result--;
-        if (has_infile) {
-            char *cmdline;
-            cmdline = readline();
-            if (cmdline)
-                interpret_cmd(cmdline);
-        }
+        char *cmdline;
+        int tmp = echo;
+        echo = 0;
+        cmdline = readline();
+        echo = tmp;
+        if (cmdline)
+            interpret_cmd(cmdline);
+
+    } else if (readfds && FD_ISSET(listenfd, readfds)) {
+        FD_CLR(listenfd, readfds);
+        result--;
+        int connfd;
+        struct sockaddr_in clientaddr;
+        socklen_t clientlen = sizeof(clientaddr);
+        connfd = accept(listenfd, (SA *) &clientaddr, &clientlen);
+
+        char *p = process(connfd, &clientaddr);
+        if (p)
+            interpret_cmd(p);
+        free(p);
+        close(connfd);
     }
     return result;
 }
@@ -645,12 +663,17 @@ bool run_console(char *infile_name)
 
     if (!has_infile) {
         char *cmdline;
-        while ((cmdline = linenoise(prompt)) != NULL) {
+        while ((cmdline = linenoise(prompt)) != NULL && noise) {
             interpret_cmd(cmdline);
             linenoiseHistoryAdd(cmdline);       /* Add to the history. */
             linenoiseHistorySave(HISTORY_FILE); /* Save the history on disk. */
             linenoiseFree(cmdline);
         }
+        if (!noise) {
+            while (!cmd_done())
+                cmd_select(0, NULL, NULL, NULL, NULL);
+        }
+
     } else {
         while (!cmd_done())
             cmd_select(0, NULL, NULL, NULL, NULL);
