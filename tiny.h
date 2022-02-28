@@ -5,6 +5,7 @@
 #include <netinet/in.h>
 #include <netinet/tcp.h>
 #include <signal.h>
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -14,7 +15,6 @@
 #include <sys/types.h>
 #include <time.h>
 #include <unistd.h>
-
 #ifndef _TINY_H
 #define _TINY_H
 
