@@ -36,7 +36,7 @@
 
 #include "console.h"
 #include "report.h"
-
+#include "tiny.h"
 /* Settable parameters */
 
 #define HISTORY_LEN 20
@@ -816,7 +816,12 @@ static bool do_swap(int argc, char *argv[])
     show_queue(3);
     return !error_check();
 }
-
+static bool do_web(int argc, char *argv[])
+{
+    listenfd = open_listenfd(DEFAULT_PORT);
+    noise = false;
+    return true;
+}
 static bool is_circular()
 {
     struct list_head *cur = l_meta.l->next;
@@ -931,6 +936,7 @@ static void console_init()
         dedup, "                | Delete all nodes that have duplicate string");
     ADD_COMMAND(swap,
                 "                | Swap every two adjacent nodes in queue");
+    ADD_COMMAND(web, "                | Launch tiny web server");
     add_param("length", &string_length, "Maximum length of displayed string",
               NULL);
     add_param("malloc", &fail_probability, "Malloc failure probability percent",
@@ -1079,12 +1085,10 @@ int main(int argc, char *argv[])
     queue_init();
     init_cmd();
     console_init();
-
     /* Initialize linenoise only when infile_name not exist */
     if (!infile_name) {
         /* Trigger call back function(auto completion) */
         linenoiseSetCompletionCallback(completion);
-
         linenoiseHistorySetMaxLen(HISTORY_LEN);
         linenoiseHistoryLoad(HISTORY_FILE); /* Load the history at startup */
     }
